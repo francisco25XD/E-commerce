@@ -1,0 +1,338 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model carrito_items {
+  id                 Int                 @id @default(autoincrement()) @db.UnsignedInt
+  carrito_id         Int                 @db.UnsignedInt
+  producto_id        Int                 @db.UnsignedInt
+  variante_id        Int?                @db.UnsignedInt
+  cantidad           Int                 @default(1) @db.UnsignedSmallInt
+  fecha_entrega      DateTime?           @db.Date
+  lleva_dedicatoria  Boolean             @default(false)
+  texto_dedicatoria  String?             @db.VarChar(255)
+  agregado_en        DateTime            @default(now()) @db.Timestamp(0)
+  carritos           carritos            @relation(fields: [carrito_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_carrito_items_carrito")
+  productos          productos           @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_carrito_items_producto")
+  producto_variantes producto_variantes? @relation(fields: [variante_id], references: [id], onUpdate: NoAction, map: "fk_carrito_items_variante")
+
+  @@index([carrito_id], map: "idx_carrito_items_carrito")
+  @@index([producto_id], map: "idx_carrito_items_producto")
+  @@index([variante_id], map: "idx_carrito_items_variante")
+}
+
+model carritos {
+  id             Int             @id @default(autoincrement()) @db.UnsignedInt
+  usuario_id     Int?            @unique(map: "uq_carritos_usuario") @db.UnsignedInt
+  token_sesion   String?         @unique(map: "uq_carritos_token") @db.VarChar(64)
+  creado_en      DateTime        @default(now()) @db.Timestamp(0)
+  actualizado_en DateTime        @default(now()) @db.Timestamp(0)
+  carrito_items  carrito_items[]
+  usuarios       usuarios?       @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_carritos_usuario")
+}
+
+model categorias {
+  id          Int         @id @default(autoincrement()) @db.UnsignedInt
+  slug        String      @unique(map: "uq_categorias_slug") @db.VarChar(80)
+  nombre      String      @db.VarChar(100)
+  descripcion String?     @db.VarChar(255)
+  orden       Int         @default(0) @db.SmallInt
+  activa      Boolean     @default(true)
+  productos   productos[]
+}
+
+model consultas {
+  id           Int              @id @default(autoincrement()) @db.UnsignedInt
+  tipo         consultas_tipo   @default(contacto)
+  nombre       String           @db.VarChar(120)
+  email        String           @db.VarChar(190)
+  telefono     String?          @db.VarChar(30)
+  asunto       String?          @db.VarChar(160)
+  mensaje      String           @db.Text
+  fecha_evento DateTime?        @db.Date
+  estado       consultas_estado @default(nueva)
+  creado_en    DateTime         @default(now()) @db.Timestamp(0)
+
+  @@index([estado, tipo], map: "idx_consultas_estado")
+}
+
+model direcciones {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  usuario_id    Int      @db.UnsignedInt
+  alias         String   @default("Casa") @db.VarChar(60)
+  destinatario  String   @db.VarChar(120)
+  telefono      String?  @db.VarChar(30)
+  direccion     String   @db.VarChar(200)
+  ciudad        String   @default("Logroño") @db.VarChar(100)
+  provincia     String   @default("La Rioja") @db.VarChar(100)
+  codigo_postal String?  @db.VarChar(12)
+  pais          String   @default("España") @db.VarChar(60)
+  referencia    String?  @db.VarChar(255)
+  es_principal  Boolean  @default(false)
+  usuarios      usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_direcciones_usuario")
+
+  @@index([usuario_id], map: "idx_direcciones_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model pagos {
+  id                 Int          @id @default(autoincrement()) @db.UnsignedInt
+  pedido_id          Int          @db.UnsignedInt
+  metodo             pagos_metodo
+  referencia_externa String?      @db.VarChar(120)
+  monto              Decimal      @db.Decimal(10, 2)
+  estado             pagos_estado @default(pendiente)
+  pagado_en          DateTime?    @db.DateTime(0)
+  creado_en          DateTime     @default(now()) @db.Timestamp(0)
+  pedidos            pedidos      @relation(fields: [pedido_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pagos_pedido")
+
+  @@index([pedido_id], map: "idx_pagos_pedido")
+  @@index([referencia_externa], map: "idx_pagos_referencia")
+}
+
+model pedido_historial {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  pedido_id       Int      @db.UnsignedInt
+  estado_anterior String?  @db.VarChar(20)
+  estado_nuevo    String   @db.VarChar(20)
+  comentario      String?  @db.VarChar(255)
+  creado_en       DateTime @default(now()) @db.Timestamp(0)
+  pedidos         pedidos  @relation(fields: [pedido_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_historial_pedido")
+
+  @@index([pedido_id, creado_en], map: "idx_historial_pedido")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pedido_items {
+  id                 Int                 @id @default(autoincrement()) @db.UnsignedInt
+  pedido_id          Int                 @db.UnsignedInt
+  producto_id        Int                 @db.UnsignedInt
+  variante_id        Int?                @db.UnsignedInt
+  nombre_producto    String              @db.VarChar(160)
+  variante_etiqueta  String?             @db.VarChar(60)
+  precio_unitario    Decimal             @db.Decimal(10, 2)
+  cantidad           Int                 @db.UnsignedSmallInt
+  lleva_dedicatoria  Boolean             @default(false)
+  texto_dedicatoria  String?             @db.VarChar(255)
+  subtotal           Decimal?            @db.Decimal(10, 2)
+  pedidos            pedidos             @relation(fields: [pedido_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_pedido_items_pedido")
+  productos          productos           @relation(fields: [producto_id], references: [id], onUpdate: NoAction, map: "fk_pedido_items_producto")
+  producto_variantes producto_variantes? @relation(fields: [variante_id], references: [id], onUpdate: NoAction, map: "fk_pedido_items_variante")
+
+  @@index([pedido_id], map: "idx_pedido_items_pedido")
+  @@index([producto_id], map: "idx_pedido_items_producto")
+  @@index([variante_id], map: "idx_pedido_items_variante")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model pedidos {
+  id                  Int                 @id @default(autoincrement()) @db.UnsignedInt
+  numero              String              @unique(map: "uq_pedidos_numero") @db.VarChar(20)
+  usuario_id          Int?                @db.UnsignedInt
+  zona_id             Int?                @db.UnsignedInt
+  cliente_nombre      String              @db.VarChar(120)
+  cliente_email       String              @db.VarChar(190)
+  cliente_telefono    String              @db.VarChar(30)
+  envio_direccion     String              @db.VarChar(200)
+  envio_ciudad        String              @db.VarChar(100)
+  envio_codigo_postal String?             @db.VarChar(12)
+  envio_referencia    String?             @db.VarChar(255)
+  fecha_entrega       DateTime            @db.Date
+  franja_horaria      String?             @db.VarChar(30)
+  notas               String?             @db.Text
+  subtotal            Decimal             @db.Decimal(10, 2)
+  costo_envio         Decimal             @default(0.00) @db.Decimal(10, 2)
+  descuento           Decimal             @default(0.00) @db.Decimal(10, 2)
+  total               Decimal             @db.Decimal(10, 2)
+  estado              pedidos_estado      @default(pendiente)
+  estado_pago         pedidos_estado_pago @default(pendiente)
+  creado_en           DateTime            @default(now()) @db.Timestamp(0)
+  actualizado_en      DateTime            @default(now()) @db.Timestamp(0)
+  pagos               pagos[]
+  pedido_historial    pedido_historial[]
+  pedido_items        pedido_items[]
+  usuarios            usuarios?           @relation(fields: [usuario_id], references: [id], onUpdate: NoAction, map: "fk_pedidos_usuario")
+  zonas_entrega       zonas_entrega?      @relation(fields: [zona_id], references: [id], onUpdate: NoAction, map: "fk_pedidos_zona")
+
+  @@index([cliente_email], map: "idx_pedidos_email")
+  @@index([estado, fecha_entrega], map: "idx_pedidos_estado")
+  @@index([usuario_id], map: "idx_pedidos_usuario")
+  @@index([zona_id], map: "idx_pedidos_zona")
+}
+
+model producto_imagenes {
+  id           Int       @id @default(autoincrement()) @db.UnsignedInt
+  producto_id  Int       @db.UnsignedInt
+  url          String    @db.VarChar(255)
+  texto_alt    String?   @db.VarChar(160)
+  orden        Int       @default(1) @db.SmallInt
+  es_principal Boolean   @default(false)
+  productos    productos @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_imagenes_producto")
+
+  @@index([producto_id, orden], map: "idx_imagenes_producto")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model producto_variantes {
+  id                Int             @id @default(autoincrement()) @db.UnsignedInt
+  producto_id       Int             @db.UnsignedInt
+  etiqueta          String          @db.VarChar(60)
+  extra_precio      Decimal         @default(0.00) @db.Decimal(10, 2)
+  es_predeterminada Boolean         @default(false)
+  stock             Int?            @db.UnsignedInt
+  orden             Int             @default(1) @db.SmallInt
+  carrito_items     carrito_items[]
+  pedido_items      pedido_items[]
+  productos         productos       @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_variantes_producto")
+
+  @@unique([producto_id, etiqueta], map: "uq_variante_producto_etiqueta")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model productos {
+  id                   Int                  @id @default(autoincrement()) @db.UnsignedInt
+  categoria_id         Int                  @db.UnsignedInt
+  sku                  String               @unique(map: "uq_productos_sku") @db.VarChar(30)
+  slug                 String               @unique(map: "uq_productos_slug") @db.VarChar(120)
+  nombre               String               @db.VarChar(160)
+  etiqueta             String               @db.VarChar(80)
+  descripcion          String               @db.Text
+  precio               Decimal              @db.Decimal(10, 2)
+  precio_anterior      Decimal?             @db.Decimal(10, 2)
+  descuento_pct        Int?                 @db.UnsignedTinyInt
+  valoracion           Decimal?             @db.Decimal(3, 2)
+  total_resenas        Int                  @default(0) @db.UnsignedInt
+  titulo_variante      String?              @db.VarChar(40)
+  nombre_catalogo      String?              @db.VarChar(160)
+  etiqueta_catalogo    String?              @db.VarChar(80)
+  descripcion_catalogo String?              @db.Text
+  detalle_extra        String?              @db.VarChar(80)
+  icono_extra          String?              @db.VarChar(20)
+  es_oferta_flash      Boolean              @default(false)
+  es_nuevo             Boolean              @default(false)
+  es_favorito          Boolean              @default(false)
+  stock                Int?                 @db.UnsignedInt
+  activo               Boolean              @default(true)
+  creado_en            DateTime             @default(now()) @db.Timestamp(0)
+  actualizado_en       DateTime             @default(now()) @db.Timestamp(0)
+  carrito_items        carrito_items[]
+  pedido_items         pedido_items[]
+  producto_imagenes    producto_imagenes[]
+  producto_variantes   producto_variantes[]
+  categorias           categorias           @relation(fields: [categoria_id], references: [id], onUpdate: NoAction, map: "fk_productos_categoria")
+  resenas              resenas[]
+
+  @@fulltext([nombre, etiqueta, descripcion], map: "ft_productos_busqueda")
+  @@index([categoria_id, activo], map: "idx_productos_categoria")
+  @@index([es_favorito, activo], map: "idx_productos_favorito")
+  @@index([es_oferta_flash, activo], map: "idx_productos_flash")
+  @@index([es_nuevo, activo], map: "idx_productos_nuevo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model resenas {
+  id            Int       @id @default(autoincrement()) @db.UnsignedInt
+  producto_id   Int       @db.UnsignedInt
+  usuario_id    Int?      @db.UnsignedInt
+  puntuacion    Int       @db.UnsignedTinyInt
+  comentario    String?   @db.Text
+  respuesta     String?   @db.Text
+  respondido_en DateTime? @db.Timestamp(0)
+  aprobada      Boolean   @default(true)
+  creado_en     DateTime  @default(now()) @db.Timestamp(0)
+  productos     productos @relation(fields: [producto_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_resenas_producto")
+  usuarios      usuarios? @relation(fields: [usuario_id], references: [id], onUpdate: NoAction, map: "fk_resenas_usuario")
+
+  @@unique([producto_id, usuario_id], map: "uq_resena_usuario_producto")
+  @@index([usuario_id], map: "idx_resenas_usuario")
+}
+
+model usuarios {
+  id               Int           @id @default(autoincrement()) @db.UnsignedInt
+  nombre           String        @db.VarChar(120)
+  apellido         String?       @db.VarChar(120)
+  email            String        @unique(map: "uq_usuarios_email") @db.VarChar(190)
+  password_hash    String        @db.VarChar(255)
+  telefono         String?       @db.VarChar(30)
+  fecha_nacimiento DateTime?     @db.Date
+  rol              usuarios_rol  @default(cliente)
+  activo           Boolean       @default(true)
+  creado_en      DateTime      @default(now()) @db.Timestamp(0)
+  actualizado_en DateTime      @default(now()) @db.Timestamp(0)
+  carritos       carritos?
+  direcciones    direcciones[]
+  pedidos        pedidos[]
+  resenas        resenas[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model zonas_entrega {
+  id                Int       @id @default(autoincrement()) @db.UnsignedInt
+  nombre            String    @unique(map: "uq_zonas_nombre") @db.VarChar(100)
+  costo_envio       Decimal   @default(0.00) @db.Decimal(10, 2)
+  entrega_mismo_dia Boolean   @default(false)
+  hora_corte        DateTime? @db.Time(0)
+  activa            Boolean   @default(true)
+  pedidos           pedidos[]
+}
+
+enum consultas_tipo {
+  contacto
+  evento
+  corona_funebre
+  otro
+}
+
+enum pagos_metodo {
+  tarjeta
+  transferencia
+  bizum
+  paypal
+  efectivo
+}
+
+enum pagos_estado {
+  pendiente
+  aprobado
+  rechazado
+  reembolsado
+}
+
+enum usuarios_rol {
+  cliente
+  admin
+}
+
+enum consultas_estado {
+  nueva
+  en_curso
+  respondida
+  cerrada
+}
+
+enum pedidos_estado {
+  pendiente
+  confirmado
+  en_preparacion
+  en_reparto
+  entregado
+  cancelado
+}
+
+enum pedidos_estado_pago {
+  pendiente
+  pagado
+  fallido
+  reembolsado
+}
